@@ -53,9 +53,12 @@ clean_json = regex.subn("", sitemap)
 sitemap_dict = json.loads(clean_json[0])
 urls = sitemap_dict['urlset']['url']
 
+urls_file = open("urls.txt", "w")
 for some_url in urls:
 	loc = some_url.get('loc', None)
-	lastmod = some_url.get('lastmod' , None)
+	urls_file.write(loc+"\n")	
 
-	print loc, lastmod
-	
+urls_file.close()
+
+print "URLs written to urls.txt"
+		
