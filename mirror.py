@@ -5,6 +5,8 @@ import json
 import urllib3
 import os
 
+import re
+
 def download(url):
     http = urllib3.PoolManager(
         cert_reqs='CERT_REQUIRED', # Force certificate check.
@@ -42,7 +44,18 @@ if not os.path.isfile(sitemap_filename):
     sys.exit(-1)
 
 converter = xml2json(sitemap_filename)
-sitemap = json.loads(converter.get_json())
 
-print sitemap
+sitemap = converter.get_json()
 
+regex = re.compile(r'{http:\/\/www.sitemaps.org\/.*}')
+clean_json = regex.subn("", sitemap)
+
+sitemap_dict = json.loads(clean_json[0])
+urls = sitemap_dict['urlset']['url']
+
+for some_url in urls:
+	loc = some_url.get('loc', None)
+	lastmod = some_url.get('lastmod' , None)
+
+	print loc, lastmod
+	
