@@ -1,7 +1,7 @@
 #!/bin/bash
 list_file='urls.txt'
 user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.74 Safari/537.36'
-source_url='https://some-mirror.exmple.com/en/'
+source_url='https://mirror.example.com/en/'
 sitemap_path='sitemap.xml'
 output_directory='mirror'
 sitemap_local_cache='sitemap.mirror.xml'
@@ -65,13 +65,17 @@ echo "* Absolute root will be replaced as ${source_url} -> ${site_url}"
 
 cd "${output_directory}"
 
+file_prefix_for_subroot=$(echo ${source_url} | sed "s#http\(s\)://#./#g")
+
 for mirror_file in $(find -type f -name "*.html" )
 do
 	echo "Fixing for file ${mirror_file}"
 	# Replace Absolute URLS first
-	sed -i "s#\(src\|href\|value\)=\(\"\|'\)${source_url}#\1=\2${site_url}#g" "${mirror_file}"
+	sed -i "s#\(src\|href\|value\)=\(\"\|'\)\(${source_url}\|${relative_root}\)#\1=\2${site_url}#g" "${mirror_file}"
+	current_root=$(echo ${mirror_file} | sed "s#^${file_prefix_for_subroot}\(.*\)/index.html#\1/#g")
 	# Replace Relative urls
-	sed -i "s#\(src\|href\|value\)=\(\"\|'\)${relative_root}#\1=\2${site_url}#g" "${mirror_file}"
+	# sed -i "s#\(src\|href\|value\)=\(\"\|'\)${relative_root}#\1=\2${site_url}#g" "${mirror_file}"
+	sed -i "s#\(src\|href\|value\)=\(\"\|'\)\(\?!\(http\(s\)\?://\|${relative_root}\)\)#\1=\2${site_url}${current_root}#g" "${mirror_file}"
 done
 
 cd "${current_directory}"
@@ -80,3 +84,4 @@ echo ""
 echo "* Done"
 echo ""
 exit
+
