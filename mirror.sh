@@ -1,46 +1,80 @@
 #!/bin/bash
 list_file='urls.txt'
 user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.74 Safari/537.36'
-root_url='https://some-domain.example.com/'
-sitemap_path='en/sitemap.xml'
+source_url='https://some-mirror.exmple.com/en/'
+sitemap_path='sitemap.xml'
 output_directory='mirror'
 sitemap_local_cache='sitemap.mirror.xml'
+site_url='http://www.example.com/' # deploy site url
 
 current_dir=$(pwd)
 
-if [ -f "${output_directory}" ]; then
-	echo "Error: File exists with name ${output_directory}"
-	exit
-elif [ ! -d "${output_directory}" ] ; then
-	mkdir "${output_directory}"
-fi
+function mkdir_safe {
+	if [ -f "${1}" ]; then
+		echo "Error: File exists with name ${1}"
+		exit
+	elif [ ! -d "${1}" ] ; then
+		mkdir "${1}"
+	fi
+}
 
-echo "* HTTRACK will generate the static mirror inside directory - [${output_directory}]"
-cd "${output_directory}"
+mkdir_safe "${output_directory}"
+output_directory_raw="${output_directory}_raw"
+mkdir_safe "${output_directory_raw}"
+
+cd "${output_directory_raw}"
 
 # Step 1 : 
 # Read the sitemap, and prepare the links
 # Python Implementation
-	# python mirror.py "${root_url}${sitemap_path}" > "${list_file}"
+	# python mirror.py "${source_url}${sitemap_path}" > "${list_file}"
 # Simple SED
-echo "* Downloading the sitemap "
-wget --quiet "${root_url}${sitemap_path}" -O "${sitemap_local_cache}"
+echo "* Downloading the sitemap ${source_url}${sitemap_path}"
+wget -c --quiet "${source_url}${sitemap_path}" -O "${sitemap_local_cache}"
 
-sed -e 's#\(</\?loc>\)#\n\1\n#g' "${sitemap_local_cache}" | grep "^${root_url}" > "${list_file}"
+# Extract links from sitemap
+sed -e 's#\(</\?loc>\)#\n\1\n#g' "${sitemap_local_cache}" | grep "^${source_url}"  > "${list_file}"
 
 # KN ( Keep original links )
 # p1 (Download html files only)
 # -%F (Footer option - <!-- mirroed from ... >)
 
-if [ -d "hts-cache" ]; then
-	echo "* Previous static mirror detected. Doing updates only"
-	httrack --update
-else
-	echo "* Beginning for fresh mirror "
-	httrack --list "${list_file}" -F "${user_agent}" -p1 --quiet -%F " "
-fi
+#if [ -d "hts-cache" ]; then
+#	echo "* Previous static mirror detected. Doing updates only"
+#	httrack --update
+#else
+#	echo "* Beginning for fresh mirror "
+#	httrack --list "${list_file}" -F "${user_agent}" -p1 --quiet -%F " "
+#fi
+
+for some_link in $(cat ${list_file})
+do
+	echo "Fetching ... ${some_link}"
+	wget --quiet -x -c "${some_link}"
+done
 
 cd "${current_dir}"
+echo "* Copying raw downloads to ${output_directory} for fixing links"
+cp -r "./${output_directory_raw}" "./${output_directory}"
+
+#relative_root=$(echo "${source_url}" | sed "s#^http(s)?://[^/]+##g")
+relative_root=$(echo "${source_url}" | sed 's/http\(s\)\?:\/\/[^\/]\+//g')
+
+echo "* Relative root will be replaced as ${relative_root} -> ${site_url}"
+echo "* Absolute root will be replaced as ${source_url} -> ${site_url}"
+
+cd "${output_directory}"
+
+for mirror_file in $(find -type f -name "*.html" )
+do
+	echo "Fixing for file ${mirror_file}"
+	# Replace Absolute URLS first
+	sed -i "s#\(src\|href\|value\)=\(\"\|'\)${source_url}#\1=\2${site_url}#g" "${mirror_file}"
+	# Replace Relative urls
+	sed -i "s#\(src\|href\|value\)=\(\"\|'\)${relative_root}#\1=\2${site_url}#g" "${mirror_file}"
+done
+
+cd "${current_directory}"
 
 echo ""
 echo "* Done"
